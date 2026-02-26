@@ -1,62 +1,97 @@
-// template
-import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { BlurView } from "expo-blur";
-import { SymbolView } from "expo-symbols";
-import { Platform, StyleSheet, useColorScheme } from "react-native";
-import React from "react";
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import { Tabs, router } from 'expo-router';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+import { BlurView } from 'expo-blur';
+import { SymbolView } from 'expo-symbols';
+import { Platform, StyleSheet, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import Colors from '@/constants/colors';
+import { useApp } from '@/context/AppContext';
 
-import Colors from "@/constants/colors";
-
-//IMPORTANT: iOS 26 Exists, feel free to use NativeTabs for native tabs with liquid glass support.
 function NativeTabLayout() {
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
+      <NativeTabs.Trigger name="records">
+        <Icon sf={{ default: 'list.bullet', selected: 'list.bullet' }} />
+        <Label>Записи</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="chat">
+        <Icon sf={{ default: 'message', selected: 'message.fill' }} />
+        <Label>Чат</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="products">
+        <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
+        <Label>Продукция</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
 function ClassicTabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const isIOS = Platform.OS === 'ios';
+  const isWeb = Platform.OS === 'web';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors.light.tint,
-        tabBarInactiveTintColor: Colors.light.tabIconDefault,
-        headerShown: true,
+        headerShown: false,
+        tabBarActiveTintColor: Colors.accent,
+        tabBarInactiveTintColor: Colors.tabIconDefault,
         tabBarStyle: {
-          position: "absolute",
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: isDark ? "#000" : "#fff",
-          }),
-          borderTopWidth: 0,
+          position: 'absolute',
+          backgroundColor: isIOS ? 'transparent' : Colors.surface,
+          borderTopWidth: isWeb ? 1 : 0,
+          borderTopColor: Colors.border,
           elevation: 0,
+          ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+          isIOS ? (
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          ) : isWeb ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.surface }]} />
           ) : null,
+        tabBarLabelStyle: {
+          fontFamily: 'Rubik_600SemiBold',
+          fontSize: 11,
+        },
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="records"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => (
-            <SymbolView name="house" tintColor={color} size={24} />
-          ),
+          title: 'Записи',
+          tabBarIcon: ({ color, size }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView name="list.bullet" tintColor={color} size={size} />
+            ) : (
+              <Ionicons name="list" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: 'Чат',
+          tabBarIcon: ({ color, size }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView name="message.fill" tintColor={color} size={size} />
+            ) : (
+              <Ionicons name="chatbubbles" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="products"
+        options={{
+          title: 'Продукция',
+          tabBarIcon: ({ color, size }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView name="shippingbox" tintColor={color} size={size} />
+            ) : (
+              <Ionicons name="cube-outline" size={size} color={color} />
+            ),
         }}
       />
     </Tabs>
@@ -64,6 +99,16 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { currentUser } = useApp();
+
+  useEffect(() => {
+    if (!currentUser) {
+      router.replace('/');
+    }
+  }, [currentUser]);
+
+  if (!currentUser) return null;
+
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
