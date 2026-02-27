@@ -16,17 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { ref, push, onValue, remove, update, query, limitToLast } from 'firebase/database';
 import { db, useApp } from '@/context/AppContext';
 import Colors from '@/constants/colors';
-import { router } from 'expo-router';
 
 interface Record {
   id: string;
@@ -124,13 +118,8 @@ function RecordCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
   return (
-    <Animated.View style={animStyle} entering={FadeInDown.springify()}>
+    <Animated.View entering={FadeInDown.springify()}>
       <View style={styles.card}>
         <View style={styles.cardAccent} />
         <View style={styles.cardContent}>

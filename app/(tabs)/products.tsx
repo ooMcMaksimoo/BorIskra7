@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInRight, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { ref, push, remove } from 'firebase/database';
 import { db, useApp } from '@/context/AppContext';
@@ -32,7 +32,6 @@ function ProductItem({
   return (
     <Animated.View
       entering={FadeInRight.springify()}
-      layout={Layout.springify()}
       style={styles.productItem}
     >
       <View style={styles.productIconWrap}>
