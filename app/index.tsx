@@ -47,20 +47,22 @@ function LoginButton({
   }));
 
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={animStyle}>
-      <Pressable
-        onPressIn={() => {
-          scale.value = withSpring(0.96);
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1);
-        }}
-        onPress={onPress}
-        style={[styles.loginBtn, { backgroundColor: color }]}
-      >
-        <Ionicons name={icon} size={22} color="#fff" />
-        <Text style={styles.loginBtnText}>{label}</Text>
-      </Pressable>
+    <Animated.View entering={FadeInDown.delay(delay).springify()}>
+      <Animated.View style={animStyle}>
+        <Pressable
+          onPressIn={() => {
+            scale.value = withSpring(0.96);
+          }}
+          onPressOut={() => {
+            scale.value = withSpring(1);
+          }}
+          onPress={onPress}
+          style={[styles.loginBtn, { backgroundColor: color }]}
+        >
+          <Ionicons name={icon} size={22} color="#fff" />
+          <Text style={styles.loginBtnText}>{label}</Text>
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

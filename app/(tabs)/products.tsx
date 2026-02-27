@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ref, push, remove } from 'firebase/database';
 import { db, useApp } from '@/context/AppContext';
 import Colors from '@/constants/colors';
+import { parseProductsFromFile, exportProductsToExcel } from '@/utils/excel';
 
 function ProductItem({
   name,
@@ -54,6 +55,8 @@ export default function ProductsScreen() {
   const { currentUser, products } = useApp();
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const isManager = currentUser?.role === 'manager';
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
@@ -90,6 +93,70 @@ export default function ProductsScreen() {
     ]);
   };
 
+  const handleImport = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const DocumentPicker = await import('expo-document-picker');
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv',
+          'text/plain',
+          '*/*',
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        setImporting(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const names = await parseProductsFromFile(
+        asset.uri,
+        (asset as any).file
+      );
+
+      if (names.length === 0) {
+        Alert.alert('Пусто', 'Не найдено названий в первом столбце файла.');
+        setImporting(false);
+        return;
+      }
+
+      const existing = new Set(products.map((p) => p.name.toLowerCase()));
+      const newNames = names.filter((n) => !existing.has(n.toLowerCase()));
+
+      if (newNames.length === 0) {
+        Alert.alert('Уже добавлено', 'Все позиции из файла уже есть в списке.');
+        setImporting(false);
+        return;
+      }
+
+      await Promise.all(newNames.map((n) => push(ref(db, 'products'), n)));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Готово', `Импортировано: ${newNames.length} позиций`);
+    } catch (e) {
+      Alert.alert('Ошибка', 'Не удалось импортировать файл');
+    }
+    setImporting(false);
+  };
+
+  const handleExport = async () => {
+    if (exporting || products.length === 0) return;
+    setExporting(true);
+    try {
+      await exportProductsToExcel(products);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось экспортировать данные');
+    }
+    setExporting(false);
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -105,10 +172,42 @@ export default function ProductsScreen() {
               colors={[Colors.background, Colors.surface]}
               style={[styles.header, { paddingTop: topPad + 12 }]}
             >
-              <Text style={styles.screenTitle}>Продукция</Text>
-              <Text style={styles.screenSubtitle}>
-                {products.length} позиций
-              </Text>
+              <View style={styles.headerRow}>
+                <View>
+                  <Text style={styles.screenTitle}>Продукция</Text>
+                  <Text style={styles.screenSubtitle}>
+                    {products.length} позиций
+                  </Text>
+                </View>
+                {isManager && (
+                  <View style={styles.headerActions}>
+                    <Pressable
+                      onPress={handleImport}
+                      style={[styles.headerBtn, styles.importBtn]}
+                      hitSlop={8}
+                      disabled={importing}
+                    >
+                      {importing ? (
+                        <ActivityIndicator size="small" color={Colors.accent} />
+                      ) : (
+                        <Ionicons name="cloud-upload-outline" size={20} color={Colors.accent} />
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={handleExport}
+                      style={[styles.headerBtn, styles.exportBtn]}
+                      hitSlop={8}
+                      disabled={exporting || products.length === 0}
+                    >
+                      {exporting ? (
+                        <ActivityIndicator size="small" color={Colors.success} />
+                      ) : (
+                        <Ionicons name="download-outline" size={20} color={Colors.success} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+              </View>
             </LinearGradient>
 
             {isManager && (
@@ -148,6 +247,42 @@ export default function ProductsScreen() {
                     )}
                   </Pressable>
                 </View>
+
+                <View style={styles.importExportRow}>
+                  <Pressable
+                    style={[styles.fileBtn, styles.fileBtnImport]}
+                    onPress={handleImport}
+                    disabled={importing}
+                  >
+                    {importing ? (
+                      <ActivityIndicator size="small" color={Colors.accent} />
+                    ) : (
+                      <Ionicons name="cloud-upload-outline" size={16} color={Colors.accent} />
+                    )}
+                    <Text style={[styles.fileBtnText, { color: Colors.accent }]}>
+                      {importing ? 'Импорт...' : 'Импорт из Excel'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.fileBtn,
+                      styles.fileBtnExport,
+                      (exporting || products.length === 0) && styles.fileBtnDisabled,
+                    ]}
+                    onPress={handleExport}
+                    disabled={exporting || products.length === 0}
+                  >
+                    {exporting ? (
+                      <ActivityIndicator size="small" color={Colors.success} />
+                    ) : (
+                      <Ionicons name="download-outline" size={16} color={Colors.success} />
+                    )}
+                    <Text style={[styles.fileBtnText, { color: Colors.success }]}>
+                      {exporting ? 'Экспорт...' : 'Экспорт в Excel'}
+                    </Text>
+                  </Pressable>
+                </View>
               </Animated.View>
             )}
 
@@ -161,7 +296,7 @@ export default function ProductsScreen() {
             <Ionicons name="cube-outline" size={48} color={Colors.textMuted} />
             <Text style={styles.emptyText}>Нет продукции</Text>
             {isManager && (
-              <Text style={styles.emptySubText}>Добавьте продукцию выше</Text>
+              <Text style={styles.emptySubText}>Добавьте вручную или импортируйте из Excel</Text>
             )}
           </View>
         }
@@ -176,13 +311,6 @@ export default function ProductsScreen() {
           </Animated.View>
         )}
       />
-
-      {!isManager && (
-        <View style={[styles.readonlyBanner, { bottom: bottomPad + 90 }]}>
-          <Ionicons name="lock-closed" size={13} color={Colors.textMuted} />
-          <Text style={styles.readonlyText}>Только для просмотра</Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -196,6 +324,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
   screenTitle: {
     fontFamily: 'Rubik_700Bold',
     fontSize: 28,
@@ -207,6 +340,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 4,
+  },
+  headerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  importBtn: {
+    backgroundColor: 'rgba(249,115,22,0.1)',
+    borderColor: 'rgba(249,115,22,0.3)',
+  },
+  exportBtn: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: 'rgba(16,185,129,0.3)',
   },
   addSection: {
     paddingHorizontal: 16,
@@ -263,6 +418,35 @@ const styles = StyleSheet.create({
   addBtnDisabled: {
     opacity: 0.5,
   },
+  importExportRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  fileBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  fileBtnImport: {
+    backgroundColor: 'rgba(249,115,22,0.08)',
+    borderColor: 'rgba(249,115,22,0.3)',
+  },
+  fileBtnExport: {
+    backgroundColor: 'rgba(16,185,129,0.08)',
+    borderColor: 'rgba(16,185,129,0.3)',
+  },
+  fileBtnDisabled: {
+    opacity: 0.4,
+  },
+  fileBtnText: {
+    fontFamily: 'Rubik_600SemiBold',
+    fontSize: 13,
+  },
   listHeader: {
     paddingHorizontal: 16,
     paddingBottom: 10,
@@ -316,23 +500,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Rubik_400Regular',
     fontSize: 13,
     color: Colors.textMuted,
-  },
-  readonlyBanner: {
-    position: 'absolute',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.card,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  readonlyText: {
-    fontFamily: 'Rubik_400Regular',
-    fontSize: 12,
-    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
 });

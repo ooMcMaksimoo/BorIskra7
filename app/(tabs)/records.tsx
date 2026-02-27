@@ -18,9 +18,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { ref, push, onValue, remove, update, query, limitToLast } from 'firebase/database';
+import { ref, push, onValue, remove, update, query, limitToLast, get } from 'firebase/database';
 import { db, useApp } from '@/context/AppContext';
 import Colors from '@/constants/colors';
+import { exportRecordsToExcel, RecordExport } from '@/utils/excel';
 
 interface Record {
   id: string;
@@ -263,6 +264,7 @@ export default function RecordsScreen() {
 
   const [editRecord, setEditRecord] = useState<Record | null>(null);
   const [editVisible, setEditVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -336,6 +338,24 @@ export default function RecordsScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const snap = await get(ref(db, 'records'));
+      const all: RecordExport[] = [];
+      snap.forEach((child) => {
+        all.push({ id: child.key!, ...(child.val() as Omit<RecordExport, 'id'>) });
+      });
+      all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      await exportRecordsToExcel(all);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Ошибка', 'Не удалось экспортировать данные');
+    }
+    setExporting(false);
+  };
+
   const renderRecord = useCallback(
     ({ item }: { item: Record }) => {
       const canEdit =
@@ -366,9 +386,25 @@ export default function RecordsScreen() {
             <Text style={styles.screenTitle}>Записи</Text>
             <Text style={styles.screenSubtitle}>{currentUser?.name}</Text>
           </View>
-          <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={8}>
-            <Ionicons name="log-out-outline" size={22} color={Colors.textMuted} />
-          </Pressable>
+          <View style={styles.topActions}>
+            {currentUser?.role === 'manager' && (
+              <Pressable
+                onPress={handleExport}
+                style={[styles.actionBtn, styles.exportBtn]}
+                hitSlop={8}
+                disabled={exporting}
+              >
+                {exporting ? (
+                  <ActivityIndicator size="small" color={Colors.success} />
+                ) : (
+                  <Ionicons name="download-outline" size={20} color={Colors.success} />
+                )}
+              </Pressable>
+            )}
+            <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={8}>
+              <Ionicons name="log-out-outline" size={22} color={Colors.textMuted} />
+            </Pressable>
+          </View>
         </View>
       </LinearGradient>
 
@@ -504,6 +540,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  exportBtn: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: 'rgba(16,185,129,0.3)',
   },
   logoutBtn: {
     width: 40,
