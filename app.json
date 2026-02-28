@@ -1,68 +1,19 @@
 {
   "expo": {
-    "name": "БорИскра",
-    "slug": "my-app",
+    "name": "BorIskra",
+    "slug": "welding-record",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1120"
-    },
-    "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.myapp"
-    },
-    "android": {
-      "package": "com.myapp",
-      "adaptiveIcon": {
-        "backgroundColor": "#0B1120",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
-    },
+    "scheme": "boriskra",
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "bundler": "metro",
+      "output": "static"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://replit.com/"
-        }
-      ],
-      "expo-font",
-      "expo-web-browser"
+      "expo-router"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     }
-  }
-}
-{
-  "cli": {
-    "version": ">= 0.43.0"
-  },
-  "build": {
-    "preview": {
-      "android": {
-        "buildType": "apk"
-      },
-      "distribution": "internal"
-    },
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    }
-  },
-  "submit": {
-    "production": {}
   }
 }

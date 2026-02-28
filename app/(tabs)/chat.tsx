@@ -104,7 +104,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'web' && { paddingBottom: 84 }]}>
       <LinearGradient
         colors={[Colors.background, Colors.surface]}
         style={[styles.header, { paddingTop: (Platform.OS === 'web' ? 67 : insets.top) + 12 }]}

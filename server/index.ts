@@ -160,48 +160,55 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 
-function configureExpoAndLanding(app: express.Application) {
-  const templatePath = path.resolve(
-    process.cwd(),
-    "server",
-    "templates",
-    "landing-page.html",
-  );
-  const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
-  const appName = getAppName();
+function configureStaticFiles(app: express.Application) {
+  const distPath = path.resolve(process.cwd(), "dist");
+  const distExists = fs.existsSync(path.join(distPath, "index.html"));
 
-  log("Serving static Expo files with dynamic manifest routing");
+  if (distExists) {
+    log("Serving web app from dist/ folder");
+    app.use(express.static(distPath, { maxAge: "0", etag: false }));
+  } else {
+    log("dist/ not found, will show landing page as fallback");
+  }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) {
-      return next();
+    if (req.path === "/manifest") {
+      const platform = req.header("expo-platform");
+      if (platform === "ios" || platform === "android") {
+        return serveExpoManifest(platform, res);
+      }
     }
-
-    if (req.path !== "/" && req.path !== "/manifest") {
-      return next();
-    }
-
-    const platform = req.header("expo-platform");
-    if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
-    }
-
-    if (req.path === "/") {
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName,
-      });
-    }
-
     next();
   });
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
+}
 
-  log("Expo routing: Checking expo-platform header on / and /manifest");
+function configureSpaFallback(app: express.Application) {
+  const distPath = path.resolve(process.cwd(), "dist");
+  const indexHtml = path.join(distPath, "index.html");
+
+  if (fs.existsSync(indexHtml)) {
+    app.use((req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache");
+      res.sendFile(indexHtml);
+    });
+  } else {
+    const templatePath = path.resolve(
+      process.cwd(),
+      "server",
+      "templates",
+      "landing-page.html",
+    );
+    if (fs.existsSync(templatePath)) {
+      const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
+      const appName = getAppName();
+      app.use((req: Request, res: Response) => {
+        serveLandingPage({ req, res, landingPageTemplate, appName });
+      });
+    }
+  }
 }
 
 function setupErrorHandler(app: express.Application) {
@@ -230,9 +237,11 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
-  configureExpoAndLanding(app);
+  configureStaticFiles(app);
 
   const server = await registerRoutes(app);
+
+  configureSpaFallback(app);
 
   setupErrorHandler(app);
 
