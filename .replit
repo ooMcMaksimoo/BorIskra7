@@ -1,4 +1,5 @@
 run = ["node", "scripts/web-server.js"]
+modules = ["nodejs-20"]
 
 [[ports]]
 localPort = 5000
