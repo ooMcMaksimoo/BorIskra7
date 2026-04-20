@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import { useApp } from '@/context/AppContext';
 
-function NativeTabLayout() {
+function NativeTabLayout({ isManager }: { isManager: boolean }) {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="records">
@@ -24,11 +24,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
         <Label>Продукция</Label>
       </NativeTabs.Trigger>
+      {isManager && (
+        <NativeTabs.Trigger name="users">
+          <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
+          <Label>Сотрудники</Label>
+        </NativeTabs.Trigger>
+      )}
     </NativeTabs>
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ isManager }: { isManager: boolean }) {
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
 
@@ -94,12 +100,26 @@ function ClassicTabLayout() {
             ),
         }}
       />
+      <Tabs.Screen
+        name="users"
+        options={{
+          title: 'Сотрудники',
+          tabBarButton: isManager ? undefined : () => null,
+          tabBarIcon: ({ color, size }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView name="person.2" tintColor={color} size={size} />
+            ) : (
+              <Ionicons name="people-outline" size={size} color={color} />
+            ),
+        }}
+      />
     </Tabs>
   );
 }
 
 export default function TabLayout() {
   const { currentUser } = useApp();
+  const isManager = currentUser?.role === 'manager';
 
   useEffect(() => {
     if (!currentUser) {
@@ -110,7 +130,7 @@ export default function TabLayout() {
   if (!currentUser) return null;
 
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return <NativeTabLayout isManager={isManager} />;
   }
-  return <ClassicTabLayout />;
+  return <ClassicTabLayout isManager={isManager} />;
 }

@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Platform,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -16,66 +15,29 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withSequence,
   withTiming,
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useApp, MANAGER_PIN } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import Colors from '@/constants/colors';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function LoginButton({
-  label,
-  icon,
-  color,
-  onPress,
-  delay = 0,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  onPress: () => void;
-  delay?: number;
-}) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()}>
-      <Animated.View style={animStyle}>
-        <Pressable
-          onPressIn={() => {
-            scale.value = withSpring(0.96);
-          }}
-          onPressOut={() => {
-            scale.value = withSpring(1);
-          }}
-          onPress={onPress}
-          style={[styles.loginBtn, { backgroundColor: color }]}
-        >
-          <Ionicons name={icon} size={22} color="#fff" />
-          <Text style={styles.loginBtnText}>{label}</Text>
-        </Pressable>
-      </Animated.View>
-    </Animated.View>
-  );
-}
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { currentUser, login } = useApp();
   const [name, setName] = useState('');
-  const [pinVisible, setPinVisible] = useState(false);
   const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState(false);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const pinInputRef = useRef<TextInput>(null);
+  const pinRef = useRef<TextInput>(null);
+  const shakeX = useSharedValue(0);
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
 
   useEffect(() => {
     if (currentUser) {
@@ -89,44 +51,47 @@ export default function LoginScreen() {
     });
   }, []);
 
-  const handleWelderLogin = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
+  const shake = () => {
+    shakeX.value = withSequence(
+      withTiming(-8, { duration: 60 }),
+      withTiming(8, { duration: 60 }),
+      withTiming(-6, { duration: 60 }),
+      withTiming(6, { duration: 60 }),
+      withTiming(0, { duration: 60 })
+    );
+  };
+
+  const handleLogin = async () => {
+    const trimmedName = name.trim();
+    const trimmedPin = pin.trim();
+
+    if (!trimmedName) {
+      setError('Введите ваше имя');
+      shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+    if (!trimmedPin) {
+      setError('Введите ПИН-код');
+      shake();
+      pinRef.current?.focus();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    setError('');
     setLoading(true);
-    await login(trimmed, 'welder');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/(tabs)/records');
+    const result = await login(trimmedName, trimmedPin);
     setLoading(false);
-  };
 
-  const handleManagerPress = () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    setPin('');
-    setPinError(false);
-    setPinVisible(true);
-    setTimeout(() => pinInputRef.current?.focus(), 300);
-  };
-
-  const handleVerifyPin = async () => {
-    if (pin === MANAGER_PIN) {
-      setPinVisible(false);
-      setLoading(true);
-      await login(name.trim(), 'manager');
+    if (result === 'ok') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)/records');
-      setLoading(false);
     } else {
-      setPinError(true);
+      setError('Неверное имя или ПИН-код');
       setPin('');
+      shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setTimeout(() => setPinError(false), 1500);
     }
   };
 
@@ -151,94 +116,74 @@ export default function LoginScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.form}>
-        <Text style={styles.formLabel}>Ваше имя</Text>
-        <View style={styles.inputWrapper}>
-          <Ionicons name="person-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Введите имя"
-            placeholderTextColor={Colors.textMuted}
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={handleWelderLogin}
-          />
-        </View>
-      </Animated.View>
-
-      <View style={styles.buttons}>
-        <LoginButton
-          label="Сварщик"
-          icon="construct"
-          color={Colors.accent}
-          onPress={handleWelderLogin}
-          delay={300}
-        />
-        <LoginButton
-          label="Руководитель"
-          icon="briefcase"
-          color={Colors.success}
-          onPress={handleManagerPress}
-          delay={400}
-        />
-      </View>
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator color={Colors.accent} size="large" />
-        </View>
-      )}
-
-      <Modal
-        visible={pinVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPinVisible(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setPinVisible(false)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="lock-closed" size={24} color={Colors.accent} />
-              <Text style={styles.modalTitle}>Код руководителя</Text>
-            </View>
-
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Ваше имя</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="person-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
             <TextInput
-              ref={pinInputRef}
-              style={[styles.pinInput, pinError && styles.pinInputError]}
+              style={styles.input}
+              value={name}
+              onChangeText={(v) => { setName(v); setError(''); }}
+              placeholder="Введите имя"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => pinRef.current?.focus()}
+            />
+          </View>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>ПИН-код</Text>
+          <Animated.View style={[styles.inputWrapper, shakeStyle, error && styles.inputWrapperError]}>
+            <Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
+            <TextInput
+              ref={pinRef}
+              style={styles.input}
               value={pin}
-              onChangeText={setPin}
+              onChangeText={(v) => { setPin(v); setError(''); }}
               placeholder="••••"
               placeholderTextColor={Colors.textMuted}
               keyboardType="number-pad"
               secureTextEntry
-              maxLength={4}
-              onSubmitEditing={handleVerifyPin}
+              maxLength={6}
               returnKeyType="done"
+              onSubmitEditing={handleLogin}
             />
+          </Animated.View>
+        </View>
 
-            {pinError && (
-              <Text style={styles.pinErrorText}>Неверный код</Text>
+        {!!error && (
+          <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={14} color={Colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </Animated.View>
+        )}
+
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <Pressable
+            style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="flash" size={20} color="#fff" />
+                <Text style={styles.loginBtnText}>Войти</Text>
+              </>
             )}
-
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => setPinVisible(false)}
-              >
-                <Text style={styles.modalBtnCancelText}>Отмена</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnConfirm]}
-                onPress={handleVerifyPin}
-              >
-                <Text style={styles.modalBtnConfirmText}>Войти</Text>
-              </Pressable>
-            </View>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Animated.View>
+
+        <Animated.View entering={FadeIn.delay(400)}>
+          <Text style={styles.hint}>
+            Первый вход: используйте ПИН <Text style={styles.hintPin}>1234</Text>
+          </Text>
+        </Animated.View>
+      </Animated.View>
 
       <Animated.View entering={FadeIn.delay(600)} style={styles.footer}>
         <Text style={styles.footerText}>сделано с огнём</Text>
@@ -284,9 +229,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   form: {
-    gap: 8,
+    gap: 14,
   },
-  formLabel: {
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
     fontFamily: 'Rubik_600SemiBold',
     fontSize: 13,
     color: Colors.textSecondary,
@@ -304,6 +252,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 56,
   },
+  inputWrapperError: {
+    borderColor: Colors.error,
+  },
   inputIcon: {
     marginRight: 10,
   },
@@ -314,8 +265,16 @@ const styles = StyleSheet.create({
     color: Colors.text,
     height: '100%',
   },
-  buttons: {
-    gap: 12,
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  errorText: {
+    fontFamily: 'Rubik_400Regular',
+    fontSize: 13,
+    color: Colors.error,
   },
   loginBtn: {
     flexDirection: 'row',
@@ -324,99 +283,32 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 16,
     height: 56,
-    shadowColor: '#000',
+    backgroundColor: Colors.accent,
+    shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
+    marginTop: 4,
+  },
+  loginBtnDisabled: {
+    opacity: 0.7,
   },
   loginBtnText: {
     fontFamily: 'Rubik_600SemiBold',
     fontSize: 16,
     color: '#fff',
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(11,17,32,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 24,
-    padding: 24,
-    width: '100%',
-    gap: 16,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  modalTitle: {
-    fontFamily: 'Rubik_700Bold',
-    fontSize: 20,
-    color: Colors.text,
-  },
-  pinInput: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: Colors.borderLight,
-    fontFamily: 'Rubik_600SemiBold',
-    fontSize: 28,
-    color: Colors.text,
-    textAlign: 'center',
-    letterSpacing: 12,
-    height: 64,
-    paddingHorizontal: 20,
-  },
-  pinInputError: {
-    borderColor: Colors.error,
-  },
-  pinErrorText: {
+  hint: {
     fontFamily: 'Rubik_400Regular',
-    fontSize: 13,
-    color: Colors.error,
+    fontSize: 12,
+    color: Colors.textMuted,
     textAlign: 'center',
+    marginTop: 4,
   },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modalBtn: {
-    flex: 1,
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnCancel: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  modalBtnCancelText: {
+  hintPin: {
     fontFamily: 'Rubik_600SemiBold',
-    fontSize: 15,
     color: Colors.textSecondary,
-  },
-  modalBtnConfirm: {
-    backgroundColor: Colors.success,
-  },
-  modalBtnConfirmText: {
-    fontFamily: 'Rubik_600SemiBold',
-    fontSize: 15,
-    color: '#fff',
   },
   footer: {
     alignItems: 'center',

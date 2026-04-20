@@ -73,8 +73,14 @@ export default function ProductsScreen() {
       await push(ref(db, 'products'), trimmed);
       setNewName('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
+    } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Не удалось добавить',
+        e?.code === 'PERMISSION_DENIED'
+          ? 'Нет доступа к базе данных. Проверьте правила Firebase.'
+          : String(e?.message ?? e)
+      );
     }
     setAdding(false);
   };
